@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nepal Flood , Tibet Headwaters to Lower River</title>
+<style>
+  :root{--ink:#11161b;--paper:#f2f4f6;--cyan:#35a7c9;--alert:#e0563f;--mono:'Courier New',monospace}
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:var(--ink);color:var(--paper);font-family:'Segoe UI',Arial,sans-serif;overflow:hidden}
+  #scene{position:fixed;inset:0}
+  #hud{position:fixed;inset:0;pointer-events:none;display:flex;flex-direction:column;justify-content:space-between;padding:18px 24px}
+  #top{display:flex;justify-content:space-between;align-items:flex-start}
+  #title h1{font-size:clamp(14px,1.9vw,20px);font-weight:600;letter-spacing:.06em;text-shadow:0 1px 8px #000}
+  #title p{font-family:var(--mono);font-size:10px;color:#9db6c6;margin-top:3px;letter-spacing:.1em}
+  #telemetry{font-family:var(--mono);font-size:11px;text-align:right;line-height:1.8;color:#a7bccb;text-shadow:0 1px 6px #000}
+  #telemetry b{color:#fff;font-weight:400}
+  #telemetry .warn{color:var(--alert)}
+  /* drone frame corners */
+  .corner{position:fixed;width:34px;height:34px;border:2px solid rgba(255,255,255,.35);pointer-events:none}
+  #c1{top:70px;left:22px;border-right:0;border-bottom:0}
+  #c2{top:70px;right:22px;border-left:0;border-bottom:0}
+  #c3{bottom:70px;left:22px;border-right:0;border-top:0}
+  #c4{bottom:70px;right:22px;border-left:0;border-top:0}
+  #rec{position:fixed;top:78px;left:66px;font-family:var(--mono);font-size:11px;color:#ff5445;letter-spacing:.15em;pointer-events:none}
+  #rec::before{content:'●';margin-right:6px;animation:blink 1.2s infinite}
+  @keyframes blink{50%{opacity:.15}}
+  #legend{position:fixed;left:24px;bottom:78px;background:rgba(255,255,255,.93);color:#222;
+    border-radius:4px;padding:10px 14px;font-size:11px;box-shadow:0 2px 10px rgba(0,0,0,.4);pointer-events:none}
+  #legend h3{font-size:11px;font-weight:600;margin-bottom:7px;color:#333}
+  .lrow{display:flex;align-items:center;gap:8px;margin:3px 0}
+  .sw{width:16px;height:11px;border-radius:2px;border:1px solid rgba(0,0,0,.15)}
+  #phase{align-self:center;text-align:center;transition:opacity .5s;text-shadow:0 2px 14px rgba(0,0,0,.9)}
+  #phase .ph-label{font-family:var(--mono);font-size:10px;letter-spacing:.3em;color:var(--cyan);text-transform:uppercase}
+  #phase h2{font-size:clamp(16px,2.4vw,25px);font-weight:600;margin-top:4px}
+  #phase p{font-size:12px;color:#c2d0da;max-width:540px;margin:6px auto 0}
+  #bar{display:flex;align-items:center;gap:12px;pointer-events:auto}
+  button{background:rgba(18,26,34,.85);border:1px solid #3a5870;color:#fff;font-family:var(--mono);
+    font-size:11.5px;letter-spacing:.08em;padding:8px 14px;cursor:pointer;border-radius:3px}
+  button:hover{border-color:var(--cyan)}
+  button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
+  #progress{flex:1;height:3px;background:#223546;position:relative;border-radius:2px}
+  #fill{position:absolute;inset:0 auto 0 0;background:linear-gradient(90deg,var(--cyan),var(--alert));width:0%;border-radius:2px}
+  .mark{position:absolute;top:-4px;width:1px;height:11px;background:#4d6d88}
+  #speedbox{font-family:var(--mono);font-size:11px;color:#9db6c6;display:flex;gap:5px;align-items:center}
+  #speedbox button{padding:5px 8px}
+  @media(max-width:640px){#telemetry,#legend,#rec{display:none}#phase p{display:none}}
+</style>
+</head>
+<body>
+<div id="scene"></div>
+<div class="corner" id="c1"></div><div class="corner" id="c2"></div>
+<div class="corner" id="c3"></div><div class="corner" id="c4"></div>
+<div id="rec">Credit · Mohammed Hlal</div>
+<div id="hud">
+  <div id="top">
+    <div id="title"><h1>Trans-Himalayan </h1>
+      <p>TIBET PLATEAU → BORDER GORGE → NEPAL VALLEY → LOWER RIVER</p></div>
+    <div id="telemetry">
+      <div>SIM TIME <b id="t-time">T+0 h 00</b></div>
+      <div>ALT <b id="t-alt">— m AGL</b></div>
+      <div>GROUND ELEV <b id="t-elev">5,200 m</b></div>
+      <div>WAVE FRONT <b id="t-dist">0.0 km</b></div>
+      <div>DISCHARGE <b id="t-q" class="warn">—</b></div>
+      <div>BUILDINGS FLOODED <b id="t-bld" class="warn">0</b></div>
+    </div>
+  </div>
+  <div id="legend">
+    <h3>Flood depth (m)</h3>
+    <div class="lrow"><div class="sw" style="background:#bfe3ef"></div><span>&lt; 0.5</span></div>
+    <div class="lrow"><div class="sw" style="background:#6fb6d6"></div><span>0.5 – 1.5</span></div>
+    <div class="lrow"><div class="sw" style="background:#3a7fc2"></div><span>1.5 – 3.0</span></div>
+    <div class="lrow"><div class="sw" style="background:#1f4e96"></div><span>&gt; 3.0</span></div>
+    <div class="lrow"><div class="sw" style="background:#eef4f6"></div><span>Whitewater / foam</span></div>
+    <div class="lrow" style="margin-top:6px"><div class="sw" style="background:#c62f1d"></div><span>Building inundated</span></div>
+  </div>
+  <div id="phase">
+    <div class="ph-label" id="ph-label">T+0 h · 5,200 m · Tibet Plateau</div>
+    <h2 id="ph-title">Supraglacial Lake Breach</h2>
+    <p id="ph-desc">The view lifts off beside the moraine dam as the lake begins to drain toward the border river.</p>
+  </div>
+  <div id="bar">
+    <button id="play">⏸ PAUSE</button><button id="replay">↺ REPLAY</button>
+    <div id="progress"><div id="fill"></div><div class="mark" style="left:18%"></div><div class="mark" style="left:42%"></div><div class="mark" style="left:66%"></div><div class="mark" style="left:84%"></div></div>
+    <div id="speedbox">SPEED<button data-s="0.5">.5×</button><button data-s="1" style="border-color:#35a7c9">1×</button><button data-s="2">2×</button></div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+/* ============ RENDERER ============ */
+const W=()=>innerWidth,H=()=>innerHeight;
+const renderer=new THREE.WebGLRenderer({antialias:true});
+renderer.setSize(W(),H());renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+renderer.outputEncoding=THREE.sRGBEncoding;
+renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.02;
+document.getElementById('scene').appendChild(renderer.domElement);
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0xafc6d6);
+scene.fog=new THREE.Fog(0xb6cbdb,180,850);
+const camera=new THREE.PerspectiveCamera(62,W()/H(),0.3,3000); // wide drone lens
+
+scene.add(new THREE.HemisphereLight(0xd8e7f2,0x63594a,0.68));
+const sun=new THREE.DirectionalLight(0xfff2dc,1.45);
+sun.position.set(-260,340,-160);sun.castShadow=true;
+sun.shadow.mapSize.set(4096,4096);
+Object.assign(sun.shadow.camera,{left:-420,right:420,top:420,bottom:-420,far:1400});
+scene.add(sun);
+
+/* ============ NOISE ============ */
+function hash(x,z){const s=Math.sin(x*127.1+z*311.7)*43758.5453;return s-Math.floor(s);}
+function vnoise(x,z){const xi=Math.floor(x),zi=Math.floor(z),xf=x-xi,zf=z-zi;
+  const u=xf*xf*(3-2*xf),v=zf*zf*(3-2*zf);
+  return hash(xi,zi)*(1-u)*(1-v)+hash(xi+1,zi)*u*(1-v)+hash(xi,zi+1)*(1-u)*v+hash(xi+1,zi+1)*u*v;}
+function fbm(x,z,o){let a=.5,f=1,s=0;for(let i=0;i<o;i++){s+=a*vnoise(x*f,z*f);a*=.5;f*=2.05;}return s;}
+function ridged(x,z,o){let a=.5,f=1,s=0;for(let i=0;i<o;i++){s+=a*(1-Math.abs(2*vnoise(x*f,z*f)-1));a*=.5;f*=2.1;}return s;}
+const smooth=(a,b,x)=>{const t=THREE.MathUtils.clamp((x-a)/(b-a),0,1);return t*t*(3-2*t);};
+
+/* ============ TERRAIN ============ */
+const LEN=640,WID=440,SEGX=210,SEGZ=320;
+const tParam=z=>(z+LEN/2)/LEN;
+function baseElev(z){const t=tParam(z);
+  const plateau=150*Math.pow(Math.max(0,1-t/0.28),0.6);
+  const rest=120*Math.pow(Math.max(0,1-t),1.9);
+  return Math.max(plateau,rest)-6;}
+const riverX=z=>Math.sin(z*0.014)*28+Math.sin(z*0.042+1.6)*10+Math.sin(z*0.1)*4;
+function hw(z){const t=tParam(z);
+  if(t<0.20)return 12;
+  if(t<0.30)return 6.5;
+  if(t<0.58)return 8+(t-0.30)*30;
+  return 16+(t-0.58)*200;}
+function terrainH(x,z){
+  const t=tParam(z),dx=Math.abs(x-riverX(z)),half=hw(z),base=baseElev(z);
+  let wall=0;
+  if(dx>half){const d=dx-half,steep=t<0.30?2.1:(t<0.58?1.3:0.28);
+    wall=Math.min(d*steep,125*(1-t*0.7));}
+  const mtn=t<0.62?ridged(x*0.012+8,z*0.012,5)*wall*0.9:0;
+  const rough=fbm(x*0.03,z*0.03,5)*(3.5+wall*0.22)+mtn*0.35;
+  const chan=dx<half?-3.0*(1-dx/half):0;
+  const plains=t>0.58?fbm(x*0.05,z*0.05,3)*2.0:0;
+  const soft=t<0.20?0.45:1;
+  return base+(wall+rough)*soft+chan+plains;}
+
+const tGeo=new THREE.PlaneGeometry(WID,LEN,SEGX,SEGZ);tGeo.rotateX(-Math.PI/2);
+const pos=tGeo.attributes.position,cols=[];
+const C={snow:new THREE.Color(0xf2f5f7),rockHi:new THREE.Color(0x7a7370),rockLo:new THREE.Color(0x5a524a),
+  tibet:new THREE.Color(0xa5915f),tibet2:new THREE.Color(0x8d7a52),
+  forest:new THREE.Color(0x2f4d2b),forest2:new THREE.Color(0x42613b),
+  terr:new THREE.Color(0x7c8a44),paddy:new THREE.Color(0x5e7a35),
+  silt:new THREE.Color(0x9b7d54),sand:new THREE.Color(0xc4ad82)};
+for(let i=0;i<pos.count;i++){
+  const x=pos.getX(i),z=pos.getZ(i),h=terrainH(x,z),t=tParam(z);
+  pos.setY(i,h);
+  const n=fbm(x*0.08,z*0.08,4);let c;
+  if(h>96)c=C.snow.clone().lerp(C.rockHi,n*0.35);
+  else if(h>60)c=C.rockHi.clone().lerp(C.snow,(h-60)/60).lerp(C.rockLo,n*0.5);
+  else if(t<0.24)c=C.tibet.clone().lerp(C.tibet2,n);
+  else if(t<0.58){c=C.forest.clone().lerp(C.forest2,n);
+    if(h<40&&h>8&&Math.sin(h*2.3)>0.35)c.lerp(C.terr,0.5);}
+  else{const fx=Math.floor(x/9),fz=Math.floor(z/9),pk=hash(fx,fz);
+    c=(pk<0.4?C.paddy:pk<0.7?C.terr:C.silt).clone().lerp(C.sand,n*0.25);
+    if(Math.abs(x-riverX(z))<hw(z)*0.9&&hash(fx*3,fz*3)>0.5)c.lerp(C.sand,0.6);}
+  c.offsetHSL(0,0,(n-0.5)*0.05);cols.push(c.r,c.g,c.b);}
+tGeo.setAttribute('color',new THREE.Float32BufferAttribute(cols,3));
+tGeo.computeVertexNormals();
+scene.add(Object.assign(new THREE.Mesh(tGeo,new THREE.MeshLambertMaterial({vertexColors:true})),{receiveShadow:true}));
+
+/* base river */
+{const rGeo=new THREE.PlaneGeometry(WID,LEN,SEGX,SEGZ);rGeo.rotateX(-Math.PI/2);
+ const rp=rGeo.attributes.position;
+ for(let i=0;i<rp.count;i++){const x=rp.getX(i),z=rp.getZ(i);
+   rp.setY(i,Math.abs(x-riverX(z))<hw(z)*0.5?terrainH(riverX(z),z)+0.8:-500);}
+ rGeo.computeVertexNormals();
+ scene.add(new THREE.Mesh(rGeo,new THREE.MeshPhongMaterial({color:0x86aebb,shininess:110,transparent:true,opacity:0.85})));}
+
+/* forest */
+{const cnt=2400,geo=new THREE.ConeGeometry(1.1,3.4,6);
+ const im=new THREE.InstancedMesh(geo,new THREE.MeshLambertMaterial({color:0x24401f}),cnt);
+ const m=new THREE.Matrix4();let placed=0,tries=0;
+ while(placed<cnt&&tries<22000){tries++;
+   const z=-LEN/2+LEN*0.26+Math.random()*LEN*0.36,x=(Math.random()-0.5)*WID*0.8;
+   const h=terrainH(x,z);
+   if(h>10&&h<58&&Math.abs(x-riverX(z))>hw(z)+3){
+     const s=0.7+Math.random()*0.9;m.makeScale(s,s,s);
+     m.setPosition(x,h+1.7*s,z);im.setMatrixAt(placed++,m);}}
+ im.count=placed;im.castShadow=true;scene.add(im);}
+
+/* glacial lake */
+const lakeZ=-LEN/2+22;
+const lake=new THREE.Mesh(new THREE.CircleGeometry(24,40),
+  new THREE.MeshPhongMaterial({color:0x54c2cf,shininess:130,transparent:true,opacity:0.92}));
+lake.rotation.x=-Math.PI/2;
+lake.position.set(riverX(lakeZ),baseElev(lakeZ)+2.5,lakeZ);
+scene.add(lake);
+
+/* ============ BUILDINGS ============ */
+function facadeTexture(base,winLit){
+  const c=document.createElement('canvas');c.width=128;c.height=256;
+  const g=c.getContext('2d');g.fillStyle=base;g.fillRect(0,0,128,256);
+  g.fillStyle='rgba(0,0,0,.08)';g.fillRect(0,0,128,8);
+  for(let ry=14;ry<246;ry+=22)for(let rx=10;rx<118;rx+=20){
+    g.fillStyle=Math.random()<winLit?'#cfe0ea':'#2e3b46';g.fillRect(rx,ry,12,14);
+    g.fillStyle='rgba(255,255,255,.25)';g.fillRect(rx,ry,12,3);}
+  const t=new THREE.CanvasTexture(c);t.anisotropy=4;return t;}
+const facades=[facadeTexture('#cfc6b8',.18),facadeTexture('#b7c0c6',.15),
+  facadeTexture('#d8cdb9',.2),facadeTexture('#c9b8a4',.22)];
+const roofTex=(()=>{const c=document.createElement('canvas');c.width=c.height=64;
+  const g=c.getContext('2d');g.fillStyle='#7e7a72';g.fillRect(0,0,64,64);
+  g.fillStyle='#6b6760';for(let i=0;i<36;i++)g.fillRect(Math.random()*64,Math.random()*64,6,6);
+  return new THREE.CanvasTexture(c);})();
+const tinRoof=new THREE.MeshLambertMaterial({color:0x7fa0b0});
+const buildings=[];
+function addTown(z0,count,spread,tall){
+  for(let i=0;i<count;i++){
+    const z=z0+(Math.random()-0.5)*spread;
+    const side=Math.random()>0.5?1:-1;
+    const x=riverX(z)+side*(hw(z)*0.6+3+Math.random()*spread*0.5);
+    const gz=terrainH(x,z);
+    if(gz>55)continue;
+    const w=3.5+Math.random()*5,d=3.5+Math.random()*5;
+    const floors=1+Math.floor(Math.random()*(tall?5:3)),h=floors*3;
+    const fac=facades[Math.floor(Math.random()*facades.length)].clone();
+    fac.repeat.set(Math.max(1,Math.round(w/5)),Math.max(1,floors*0.8));
+    fac.wrapS=fac.wrapT=THREE.RepeatWrapping;fac.needsUpdate=true;
+    const wallM=new THREE.MeshLambertMaterial({map:fac});
+    const roofM=Math.random()<0.5?tinRoof.clone():new THREE.MeshLambertMaterial({map:roofTex});
+    const mats=[wallM,wallM.clone(),roofM,new THREE.MeshLambertMaterial({color:0x5a564f}),wallM.clone(),wallM.clone()];
+    const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mats);
+    m.position.set(x,gz+h/2,z);m.rotation.y=(Math.random()-0.5)*0.5;
+    m.castShadow=m.receiveShadow=true;
+    m.userData={gz,flooded:false};
+    scene.add(m);buildings.push(m);}}
+addTown(-LEN/2+70,10,14,false);
+addTown(-LEN/2+0.30*LEN+18,16,18,false);
+addTown(-30,26,26,false);
+addTown(90,40,40,true);
+addTown(200,60,90,false);
+
+/* border bridge, dam, road bridges */
+const borderBridge=new THREE.Group();
+{const bz=-LEN/2+0.27*LEN,cx=riverX(bz),y=baseElev(bz)+9;
+ const deck=new THREE.Mesh(new THREE.BoxGeometry(hw(bz)*2+16,0.6,3.4),new THREE.MeshLambertMaterial({color:0xb03a2e}));
+ deck.position.set(cx,y,bz);deck.castShadow=true;borderBridge.add(deck);
+ for(const s of[-1,1]){const arch=new THREE.Mesh(new THREE.TorusGeometry(9,0.4,8,20,Math.PI),
+   new THREE.MeshLambertMaterial({color:0x8e2b21}));
+   arch.position.set(cx,y,bz+s*1.5);borderBridge.add(arch);}
+ scene.add(borderBridge);borderBridge.userData={z:bz,failed:false};}
+{const damZ=-8,cx=riverX(damZ),y=terrainH(cx,damZ);
+ const weir=new THREE.Mesh(new THREE.BoxGeometry(hw(damZ)*2+6,7,3),new THREE.MeshLambertMaterial({color:0xb9bdc2}));
+ weir.position.set(cx,y+2.5,damZ);weir.castShadow=true;scene.add(weir);
+ const ph=new THREE.Mesh(new THREE.BoxGeometry(8,6,10),new THREE.MeshLambertMaterial({color:0xd8d4c8}));
+ ph.position.set(cx+hw(damZ)+8,terrainH(cx+hw(damZ)+8,damZ+14)+3,damZ+14);ph.castShadow=true;scene.add(ph);}
+for(const bz of[60,170]){
+  const g=new THREE.Group(),cx=riverX(bz),y=terrainH(cx,bz)+4;
+  const deck=new THREE.Mesh(new THREE.BoxGeometry(hw(bz)*2+14,0.6,5),new THREE.MeshLambertMaterial({color:0x9aa0a6}));
+  deck.position.set(cx,y,bz);deck.castShadow=true;g.add(deck);
+  for(const px of[-hw(bz)*0.4,hw(bz)*0.4]){const pier=new THREE.Mesh(new THREE.BoxGeometry(1.4,5,4),
+    new THREE.MeshLambertMaterial({color:0x83898f}));pier.position.set(cx+px,y-2.6,bz);g.add(pier);}
+  scene.add(g);}
+
+/* clouds */
+{const cvs=document.createElement('canvas');cvs.width=cvs.height=128;
+ const g=cvs.getContext('2d'),grd=g.createRadialGradient(64,64,8,64,64,64);
+ grd.addColorStop(0,'rgba(255,255,255,.9)');grd.addColorStop(1,'rgba(255,255,255,0)');
+ g.fillStyle=grd;g.fillRect(0,0,128,128);
+ const tex=new THREE.CanvasTexture(cvs);
+ for(let i=0;i<24;i++){const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,transparent:true,opacity:0.5,depthWrite:false}));
+   sp.position.set((Math.random()-0.5)*800,160+Math.random()*100,(Math.random()-0.5)*900);
+   const s=70+Math.random()*100;sp.scale.set(s,s*0.45,1);scene.add(sp);}}
+
+/* ============ NATURAL WATER ============ */
+/* Higher-res water sheet near action; vertex-colored with foam. */
+const wGeo=new THREE.PlaneGeometry(WID,LEN,SEGX,SEGZ);wGeo.rotateX(-Math.PI/2);
+const wPos=wGeo.attributes.position;
+const wCols=new Float32Array(wPos.count*3);
+wGeo.setAttribute('color',new THREE.BufferAttribute(wCols,3));
+const wMat=new THREE.MeshPhongMaterial({vertexColors:true,transparent:true,opacity:0.86,
+  shininess:140,specular:0xd4e6ee,side:THREE.DoubleSide});
+scene.add(new THREE.Mesh(wGeo,wMat));
+const bXa=new Float32Array(wPos.count),bZa=new Float32Array(wPos.count);
+for(let i=0;i<wPos.count;i++){bXa[i]=wPos.getX(i);bZa[i]=wPos.getZ(i);}
+const FRONT0=-LEN/2+8,FRONT1=LEN/2+12;
+const ramp=[[0.5,new THREE.Color(0xbfe3ef)],[1.5,new THREE.Color(0x6fb6d6)],
+            [3.0,new THREE.Color(0x3a7fc2)],[99,new THREE.Color(0x1f4e96)]];
+const rampColor=d=>{for(const[t,c]of ramp)if(d<t)return c;return ramp[3][1];};
+const cSilt=new THREE.Color(0x6f4c28),cFoam=new THREE.Color(0xeef4f6);
+
+/* irregular tongue-shaped front: local front position varies with x & time */
+function localFront(x,front,time){
+  return front
+    +vnoise(x*0.06,front*0.03)*14-7                 // fingers along the front
+    +Math.sin(x*0.3+time*1.2)*1.5;                  // breathing
+}
+/* flow-advected surface waves: patterns drift downstream (+z) and slosh laterally */
+function surfWave(x,z,time,energy){
+  const flowZ=z-time*10;                            // downstream advection ~10 m/s
+  let h=0;
+  h+=Math.sin(flowZ*0.35+x*0.12)*0.30;              // primary swell moving with flow
+  h+=Math.sin(flowZ*0.9-x*0.35+1.7)*0.16;           // shorter chop
+  h+=(fbm(x*0.12+time*0.7,flowZ*0.12,3)-0.5)*0.9;   // turbulent boil
+  h+=Math.sin(x*0.8+time*3.1)*0.07;                 // lateral slosh
+  return h*energy;}
+function floodDepth(x,z,front,time){
+  const lf=localFront(x,front,time);
+  if(z>lf)return -999;
+  const behind=lf-z,t=tParam(z),half=hw(z),dx=Math.abs(x-riverX(z));
+  /* lateral spread also irregular — lobes follow micro-topography noise */
+  const lobe=1+ (vnoise(z*0.05,x*0.05)-0.5)*0.55;
+  const spread=(half+Math.min(behind*0.26,t<0.30?5:(t<0.58?16:120)))*lobe;
+  if(dx>spread)return -999;
+  /* smooth arrival: depth eases in over first ~12 m behind the front (no wall of water) */
+  const arrive=smooth(0,12,behind);
+  let d=(1.2+6.5*Math.exp(-behind*0.05)+2.6*Math.exp(-behind*0.006))*arrive;
+  d*=t<0.30?1.8:(t<0.58?1.2:0.75);
+  d*=1-Math.pow(dx/spread,2)*0.68;
+  /* turbulence energy: high at front & in gorge, calm in deep tail */
+  const energy=0.5+1.4*Math.exp(-behind*0.04)+(t<0.30?0.5:0);
+  d+=surfWave(x,z,time,energy)*Math.min(1,d*0.8);
+  return d;}
+function foamAmount(x,z,front,time,d){
+  const lf=localFront(x,front,time),behind=lf-z;
+  let f=Math.exp(-behind*0.10);                     // breaking front
+  f+=smooth(0.5,0.05,d)*0.5;                        // thin shoreline edges
+  f+=Math.max(0,fbm(x*0.2+time*1.1,(z-time*10)*0.2,3)-0.62)*2.2; // streaks riding the flow
+  const t=tParam(z);if(t<0.30)f+=0.25;              // gorge whitewater
+  return THREE.MathUtils.clamp(f,0,1);}
+function updateWater(front,time){
+  for(let i=0;i<wPos.count;i++){
+    const x=bXa[i],z=bZa[i],d=floodDepth(x,z,front,time);
+    if(d<0.05){wPos.setY(i,-500);continue;}
+    wPos.setY(i,terrainH(riverX(z),z)+d);
+    const lf=localFront(x,front,time),behind=lf-z;
+    let c=rampColor(d).clone()
+      .lerp(cSilt,Math.exp(-behind*0.03)*0.8)       // silt-brown near front, clears behind
+      .lerp(cFoam,foamAmount(x,z,front,time,d));    // foam on top
+    wCols[i*3]=c.r;wCols[i*3+1]=c.g;wCols[i*3+2]=c.b;}
+  wPos.needsUpdate=true;wGeo.attributes.color.needsUpdate=true;
+  wGeo.computeVertexNormals();}
+function waterElevAt(x,z,front,time){
+  const d=floodDepth(x,z,front,time);
+  return d<0?-999:terrainH(riverX(z),z)+d;}
+
+/* debris logs tumbling with the flow */
+const DEB=200;
+const logGeo=new THREE.CylinderGeometry(0.16,0.16,2.4,5);
+const logs=new THREE.InstancedMesh(logGeo,new THREE.MeshLambertMaterial({color:0x6b543c}),DEB);
+scene.add(logs);
+const logSeed=Array.from({length:DEB},()=>({o:Math.random()*60,x:Math.random()-0.5,r:Math.random()*6}));
+const lm=new THREE.Matrix4(),lq=new THREE.Quaternion(),le=new THREE.Euler(),lv=new THREE.Vector3(),ls=new THREE.Vector3(1,1,1);
+function updateLogs(front,time){
+  for(let i=0;i<DEB;i++){
+    const sd=logSeed[i];
+    const z=front-sd.o*(0.4+0.6*vnoise(i,time*0.1));
+    if(z<FRONT0){lv.set(0,-500,0);}
+    else{
+      const x=riverX(z)+sd.x*hw(z)*1.6;
+      const d=floodDepth(x,z,front,time);
+      lv.set(x,d<0?-500:terrainH(riverX(z),z)+d+0.1,z);}
+    le.set(Math.sin(time*2+sd.r)*0.3,sd.r+time*(0.5+sd.x),Math.cos(time*1.7+sd.r)*0.25);
+    lq.setFromEuler(le);lm.compose(lv,lq,ls);logs.setMatrixAt(i,lm);}
+  logs.instanceMatrix.needsUpdate=true;}
+
+/* spray puffs at the front */
+const SPRAY=90,sGeo=new THREE.BufferGeometry(),sPos=new Float32Array(SPRAY*3);
+sGeo.setAttribute('position',new THREE.BufferAttribute(sPos,3));
+scene.add(new THREE.Points(sGeo,new THREE.PointsMaterial({color:0xf2f8fa,size:1.6,transparent:true,opacity:0.65,sizeAttenuation:true})));
+function updateSpray(front,time){
+  for(let i=0;i<SPRAY;i++){
+    const ph=(time*1.6+i*0.37)%1;                   // rising puff cycle
+    const x=riverX(front)+(hash(i,7)-0.5)*hw(front)*2;
+    const lf=localFront(x,front,time);
+    const d=floodDepth(x,lf-1.5,front,time);
+    sPos[i*3]=x+Math.sin(time*3+i)*0.6;
+    sPos[i*3+1]=d<0?-500:terrainH(riverX(lf),lf)+d+ph*3.2;
+    sPos[i*3+2]=lf-1.5+ph*2;}
+  sGeo.attributes.position.needsUpdate=true;}
+
+/* ============ TIMELINE ============ */
+const DUR=95;let elapsed=0,playing=true,speed=1,phaseIdx=-1,floodedCount=0;
+const phases=[
+ {t:0.00,label:'T+0 h · 5,200 m · Tibet Plateau',title:'Supraglacial Lake Breach',
+  desc:'The drone lifts off beside the moraine dam as the lake begins to drain toward the border river.'},
+ {t:0.18,label:'T+0 h 40 · 3,800 m · Border Gorge',title:'Surge Crosses the Border',
+  desc:'Flying low through the gorge, the camera tracks whitewater tearing out the border bridge.'},
+ {t:0.42,label:'T+2 h · 1,900 m · Middle Valley',title:'Hydropower Intake Overtopped',
+  desc:'The drone banks over the weir as the silt-laden front overtops it and pushes into the valley towns.'},
+ {t:0.66,label:'T+5 h · 900 m · District Town',title:'Urban Inundation',
+  desc:'Hovering over rooftops: water fingers through the street grid, flagging structures block by block.'},
+ {t:0.84,label:'T+9 h · 300 m · Lower River',title:'Floodplain Attenuation',
+  desc:'The drone climbs for a wide orbit as the wave spreads in lobes across paddies and braided channels.'}];
+const $=id=>document.getElementById(id);
+function setPhase(i){if(i===phaseIdx)return;phaseIdx=i;const ph=phases[i],el=$('phase');
+  el.style.opacity=0;setTimeout(()=>{$('ph-label').textContent=ph.label;
+    $('ph-title').textContent=ph.title;$('ph-desc').textContent=ph.desc;el.style.opacity=1;},320);}
+
+/* ============ DRONE CAMERA ============ */
+/* Low chase flight: follows the river corridor ahead of/beside the front,
+   banks into turns, bobs gently, occasional altitude changes per phase. */
+const ease=p=>p<0.5?2*p*p:1-Math.pow(-2*p+2,2)/2;
+let prevEye=new THREE.Vector3(-80,220,-400),bank=0;
+function dronePose(p,time){
+  const front=FRONT0+(FRONT1-FRONT0)*ease(p);
+  const zC=Math.min(front,FRONT1-14),t=tParam(zC);
+  const bed=terrainH(riverX(zC),zC);
+  /* altitude profile: 55 m plateau → 38 m hugging the gorge → 60 m valley → 45 m rooftop hover → climb 160 m for finale */
+  let alt;
+  if(t<0.20)alt=55;
+  else if(t<0.30)alt=38;
+  else if(t<0.58)alt=60;
+  else if(t<0.80)alt=45;
+  else alt=45+(t-0.80)*550;
+  alt+=Math.sin(time*0.9)*2.2+Math.sin(time*2.3)*0.8;      // hover bob
+  /* lateral offset: weave across the channel like an FPV line */
+  const lat=Math.sin(p*22)*18+Math.sin(p*7+1)*10;
+  const eye=new THREE.Vector3(riverX(zC-14)+lat,bed+alt,zC-16);
+  /* keep min clearance above terrain under the drone */
+  const gUnder=terrainH(eye.x,eye.z);
+  if(eye.y<gUnder+14)eye.y=gUnder+14;
+  const look=new THREE.Vector3(riverX(zC+26),terrainH(riverX(zC+26),zC+26)+2,zC+26);
+  return{eye,look,front};}
+
+/* ============ UI ============ */
+$('play').onclick=()=>{playing=!playing;$('play').textContent=playing?'⏸ PAUSE':'▶ PLAY';};
+$('replay').onclick=()=>{elapsed=0;floodedCount=0;
+  buildings.forEach(b=>{if(b.userData.flooded){b.userData.flooded=false;
+    b.material.forEach(mm=>{if(mm.emissive)mm.emissive.setHex(0);});}});
+  borderBridge.userData.failed=false;borderBridge.rotation.z=0;borderBridge.position.y=0;
+  playing=true;$('play').textContent='⏸ PAUSE';};
+document.querySelectorAll('#speedbox button').forEach(b=>b.onclick=()=>{speed=+b.dataset.s;
+  document.querySelectorAll('#speedbox button').forEach(x=>x.style.borderColor='#3a5870');
+  b.style.borderColor='#35a7c9';});
+addEventListener('resize',()=>{camera.aspect=W()/H();camera.updateProjectionMatrix();renderer.setSize(W(),H());});
+
+/* ============ LOOP ============ */
+const clock=new THREE.Clock();let frame=0;
+function animate(){
+  requestAnimationFrame(animate);
+  const dt=Math.min(clock.getDelta(),0.05);
+  if(playing)elapsed=Math.min(elapsed+dt*speed,DUR);
+  const p=elapsed/DUR,time=clock.elapsedTime;
+  const{eye,look,front}=dronePose(p,time);
+  camera.position.lerp(eye,0.04);
+  /* banking: roll proportional to lateral velocity */
+  const latV=camera.position.x-prevEye.x;prevEye.copy(camera.position);
+  bank+=((-latV*0.10)-bank)*0.06;
+  camera.lookAt(look);
+  camera.rotateZ(bank);
+  /* micro gimbal shake */
+  camera.rotateX(Math.sin(time*13.7)*0.0016);
+  camera.rotateY(Math.cos(time*11.3)*0.0016);
+
+  updateWater(front,time);updateLogs(front,time);updateSpray(front,time);
+
+  lake.scale.setScalar(Math.max(0.05,1-p*5));
+  lake.position.y=baseElev(lakeZ)+2.5-Math.min(p*5,1)*3.5;
+
+  if(!borderBridge.userData.failed&&front>borderBridge.userData.z)borderBridge.userData.failed=true;
+  if(borderBridge.userData.failed&&borderBridge.rotation.z<1.1){
+    borderBridge.rotation.z+=dt*0.7;borderBridge.position.y-=dt*4;}
+
+  if(frame++%10===0){
+    for(const b of buildings){
+      if(b.userData.flooded)continue;
+      const we=waterElevAt(b.position.x,b.position.z,front,time);
+      if(we>b.userData.gz+0.35){
+        b.userData.flooded=true;floodedCount++;
+        b.material=b.material.map(mm=>{const nm=mm.clone();
+          nm.emissive=new THREE.Color(0x5a130a);nm.color.multiplyScalar(0.75);return nm;});}}}
+
+  let idx=0;phases.forEach((ph,i)=>{if(p>=ph.t)idx=i;});setPhase(idx);
+  const ff=(front-FRONT0)/(FRONT1-FRONT0);
+  const hrs=p*12,hh=Math.floor(hrs),mn=Math.floor((hrs-hh)*60);
+  $('t-time').textContent=`T+${hh} h ${String(mn).padStart(2,'0')}`;
+  $('t-alt').textContent=Math.round((camera.position.y-terrainH(camera.position.x,camera.position.z))*3)+' m AGL';
+  $('t-elev').textContent=Math.max(300,Math.round(5200-ff*4900)).toLocaleString()+' m';
+  $('t-dist').textContent=(ff*52).toFixed(1)+' km';
+  $('t-q').textContent=front<FRONT0+2?'—':Math.round(1500+16500*Math.exp(-Math.pow(p-0.32,2)*7)).toLocaleString()+' m³/s';
+  $('t-bld').textContent=floodedCount;
+  $('fill').style.width=(p*100)+'%';
+
+  renderer.render(scene,camera);}
+camera.position.set(-80,220,-400);
+animate();
+</script>
+</body>
+</html>
